@@ -7,3 +7,4 @@ C:\Users\Tim\repos\StudentProject2\StudentProject2\obj\Debug\StudentProject2.csp
 C:\Users\Tim\repos\StudentProject2\StudentProject2\obj\Debug\StudentProject2.csproj.CoreCompileInputs.cache
 C:\Users\Tim\repos\StudentProject2\StudentProject2\obj\Debug\StudentProject2.exe
 C:\Users\Tim\repos\StudentProject2\StudentProject2\obj\Debug\StudentProject2.pdb
+C:\Users\Tim\repos\StudentProject2\StudentProject2\obj\Debug\StudentProject2.Form1.resources

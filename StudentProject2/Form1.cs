@@ -15,6 +15,24 @@ namespace StudentProject2
         public Form1()
         {
             InitializeComponent();
+            txbDebug.Text = "MainWindow loaded";
+            dateEnd.Text = DateTime.Now.ToString("d");
+            txbSymbol.Focus();
+            txbDebug.Text = "Enter a stock symbol and start date, click \"Load\"";
         }
+
+        private void txbSymbol_Leave(object sender, EventArgs e)
+        {
+            txbSymbol.Text = txbSymbol.Text.ToUpper();
+        }
+
+        private void btnLoad_Click(object sender, EventArgs e)
+        {
+            txbDebug.Text = $"Symbol: {txbSymbol.Text}; Start Date: {dateStart.Text}; " +
+                $"End date: {dateEnd.Text}";
+
+        }
+
     }
+
 }
