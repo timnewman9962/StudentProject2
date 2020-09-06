@@ -36,6 +36,7 @@
             this.label1 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.label3 = new System.Windows.Forms.Label();
+            this.lbData = new System.Windows.Forms.ListBox();
             this.SuspendLayout();
             // 
             // txbSymbol
@@ -75,7 +76,7 @@
             // 
             // txbDebug
             // 
-            this.txbDebug.Location = new System.Drawing.Point(123, 151);
+            this.txbDebug.Location = new System.Drawing.Point(123, 130);
             this.txbDebug.Name = "txbDebug";
             this.txbDebug.Size = new System.Drawing.Size(477, 20);
             this.txbDebug.TabIndex = 7;
@@ -109,11 +110,20 @@
             this.label3.TabIndex = 8;
             this.label3.Text = "End Date";
             // 
+            // lbData
+            // 
+            this.lbData.FormattingEnabled = true;
+            this.lbData.Location = new System.Drawing.Point(123, 173);
+            this.lbData.Name = "lbData";
+            this.lbData.Size = new System.Drawing.Size(481, 186);
+            this.lbData.TabIndex = 9;
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.lbData);
             this.Controls.Add(this.label3);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.label1);
@@ -139,6 +149,7 @@
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label3;
+        private System.Windows.Forms.ListBox lbData;
     }
 }
 
