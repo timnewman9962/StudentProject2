@@ -11,6 +11,8 @@ using System.Net;
 using System.IO;
 using System.Security.Cryptography;
 using System.Windows.Forms.DataVisualization.Charting;
+using System.Net.Mail;
+using System.Net.Http;
 
 namespace StudentProject2
 {
@@ -71,6 +73,30 @@ namespace StudentProject2
             // load into the chart
             ProcessChart.InitChart(dateStart.Text, dateEnd.Text, chart1);
             ProcessChart.PopulateChart();
+
+            //// send SMS
+            //var client = new HttpClient();
+            //var request = new HttpRequestMessage
+            //{
+            //    Method = HttpMethod.Post,
+            //    RequestUri = new Uri("https://rapidapi.p.rapidapi.com/send"),
+            //    Headers =
+            //    {
+            //        { "x-rapidapi-host", "quick-easy-sms.p.rapidapi.com" },
+            //        { "x-rapidapi-key", "2bf61d5653mshc4f54f5afe6adf2p1452eejsn8f312618cab2" },
+            //    },
+            //    Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            //    {
+            //        { "message", "message content from RapidAPI" },
+            //        { "toNumber", "13173799962" }, //1xxxxxxxxxx
+            //    }),
+            //};
+            //using (var response = await client.SendAsync(request))
+            //{
+            //    response.EnsureSuccessStatusCode();
+            //    var body = await response.Content.ReadAsStringAsync();
+            //    Console.WriteLine(body);
+            //}
         }
 
         public static class ProcessChart
@@ -78,7 +104,8 @@ namespace StudentProject2
             public static DateTime dtStart { get; set; }
             public static DateTime dtEnd { get; set; }
             public static string[] sRecords { get; set; }
-            public static string[] sMovAvgRecords { get; set; }
+            public static string[] sMovAvgRecords1 { get; set; }
+            public static string[] sMovAvgRecords2 { get; set; }
             public static Chart chtStockChart { get; set; }
 
             public static string[] sSignals;        // subset of sRecords containing indicator-generated signals
@@ -94,6 +121,8 @@ namespace StudentProject2
             static decimal lowMin = 0m;             // lowest detected value on chart, used for vertical scaling
             static string[] sEODdata;               // End-Of-Day stock data
             static int nStartIndex;                 // index of sRecords where chart starts
+            public static int nMovAvgPer1 = -1;     // period of moving average 1
+            public static int nMovAvgPer2 = -1;     // period of moving average 2
 
             public static void InitChart(string startDate, string endDate, Chart chartRef)
             {
@@ -216,19 +245,37 @@ namespace StudentProject2
                 chtStockChart.ChartAreas[0].AxisY.Minimum = Math.Ceiling((double)lowMin) - 1;
                 chtStockChart.ChartAreas[0].AxisY.Maximum = Math.Ceiling((double)hiMax);
 
-                if(ProcessChart.sMovAvgRecords != null)
-                    ProcessChart.AddIndicatorToChart();
+                if(ProcessChart.sMovAvgRecords1 != null)
+                    ProcessChart.AddIndicatorToChart(1);
+                if(ProcessChart.sMovAvgRecords2 != null)
+                    ProcessChart.AddIndicatorToChart(2);
             }
 
-            public static void AddIndicatorToChart()
+            public static void AddIndicatorToChart(int id)
             {
+                // select the chart and data records
+                string serMovAvg;
+                string[] sMovAvgRecords;
+                switch (id)
+                {
+                    case 2: 
+                        serMovAvg = "serMovAvg2";
+                        sMovAvgRecords = ProcessChart.sMovAvgRecords2;
+                        break;
+                    case 1:
+                    default:
+                        serMovAvg = "serMovAvg1";
+                        sMovAvgRecords = ProcessChart.sMovAvgRecords1;
+                        break;
+               }
+
                 // setup variables for getting the lowest low and highest high; use to scale the vertical axis
                 decimal low;
                 decimal high;
                 // setup our daily record, it is ordered: Date, MA value
                 var sMAdata = new string[2];
 
-                chtStockChart.Series["serMovAvg1"].Points.Clear();
+                chtStockChart.Series[serMovAvg].Points.Clear();
                 if (sMovAvgRecords == null)
                     return;
 
@@ -251,26 +298,52 @@ namespace StudentProject2
                     hiMax = high > hiMax ? high : hiMax;
 
                     // plot the line, ordered: Date, value
-                    chtStockChart.Series["serMovAvg1"].Points.AddXY(sMAdata[0], decimal.Parse(sMAdata[1]));
+                    chtStockChart.Series[serMovAvg].Points.AddXY(sMAdata[0], decimal.Parse(sMAdata[1]));
                 }
                 
-                chtStockChart.AlignDataPointsByAxisLabel("s1, serMovAvg1");
+                chtStockChart.AlignDataPointsByAxisLabel($"s1, {serMovAvg}");
+                if(id == 2 && ProcessChart.sMovAvgRecords1 != null)
+                    chtStockChart.AlignDataPointsByAxisLabel("s1, serMovAvg1");
 
                 // use the max and min values from above for Y-axis scaling
                 chtStockChart.ChartAreas[0].AxisY.Minimum = Math.Ceiling((double)lowMin) - 1;
                 chtStockChart.ChartAreas[0].AxisY.Maximum = Math.Ceiling((double)hiMax);
 
-                // find crossings between indicator and stock close between s1 and serMovAvg1
-                var lstSignals = new List<string>();
-                bool bAvgOverStock = chtStockChart.Series["serMovAvg1"].Points[0].YValues[0] >= chtStockChart.Series["s1"].Points[0].YValues[3];
-                bool bTemp;
-                for(int i = 1; i < chtStockChart.Series["s1"].Points.Count(); i++)
+                // if this is the only indicator, find crossings between it and the stock close
+                // otherwise find crossings between the two indicators
+                string sSlow;
+                string sFast;
+                int nYindex;
+                if(ProcessChart.sMovAvgRecords1 == null || ProcessChart.sMovAvgRecords2 == null)
                 {
-                    bTemp = chtStockChart.Series["serMovAvg1"].Points[i].YValues[0] >= chtStockChart.Series["s1"].Points[i].YValues[3];
-                    if(bAvgOverStock != bTemp)
+                    sFast = serMovAvg;
+                    sSlow = "s1";
+                    nYindex = 3; // if we're comparing to the stock value, the close is found in .YValues[3]
+                }
+                else if(ProcessChart.nMovAvgPer1 <= ProcessChart.nMovAvgPer2)
+                {
+                    sFast = "serMovAvg1";
+                    sSlow = "serMovAvg2";
+                    nYindex = 0; // if we're comparing to an indicator, the value is found in .YValues[0]
+                }
+                else
+                {
+                    sFast = "serMovAvg2";
+                    sSlow = "serMovAvg1";
+                    nYindex = 0; // if we're comparing to an indicator, the value is found in .YValues[0]
+                }
+
+                var lstSignals = new List<string>();
+                bool bFastOverSlow = chtStockChart.Series[sFast].Points[0].YValues[0] >= chtStockChart.Series[sSlow].Points[0].YValues[nYindex];
+                bool bTemp;
+                int nMaxPoints = Math.Min(chtStockChart.Series[sFast].Points.Count(), chtStockChart.Series[sSlow].Points.Count());
+                for (int i = 1; i < nMaxPoints; i++)
+                {
+                    bTemp = chtStockChart.Series[sFast].Points[i].YValues[0] >= chtStockChart.Series[sSlow].Points[i].YValues[nYindex];
+                    if (bFastOverSlow != bTemp)
                     {
-                        bAvgOverStock = bTemp;
-                        string sDirection = bAvgOverStock ? " CrossOver" : " CrossUnder";
+                        bFastOverSlow = bTemp;
+                        string sDirection = bFastOverSlow ? " CrossOver" : " CrossUnder";
                         lstSignals.Add(sRecords[nStartIndex + i] + sDirection);
                     }
                 }
@@ -421,10 +494,28 @@ namespace StudentProject2
                 inKey = (arrowKey)e.KeyValue;
                 e.Handled = true;
                 ProcessChart.SetPanAndZoom(inKey);
+                // refresh the crossover data in the listbox
+                if (ProcessChart.sSignals != null)
+                {
+                    lbData.Items.Clear();
+                    foreach (var line in ProcessChart.sSignals)
+                        lbData.Items.Add(line);
+                }
             }
         }
 
         private void OnBnMovAvg1(object sender, EventArgs e)
+        {
+            OnBnMovAvg(1, cmbMovAvg1, txbMovAvg1, ProcessChart.sMovAvgRecords1);
+        }
+
+        private void OnBnMovAvg2(object sender, EventArgs e)
+        {
+
+            OnBnMovAvg(2, cmbMovAvg2, txbMovAvg2, ProcessChart.sMovAvgRecords2);
+        }
+
+        private void OnBnMovAvg(int id, ComboBox cmbMovAvg, TextBox txbMovAvg, string[] sMovAvgRecords)
         {
             int period;
             // validate settings
@@ -434,50 +525,72 @@ namespace StudentProject2
                 return;
             }
 
-            if(cmbMovAvg1.Text == "")
+            if(cmbMovAvg.Text == "")
             {
-                if(ProcessChart.sMovAvgRecords != null)
+                if (sMovAvgRecords != null)
                 {
-                    txbMovAvg1.Text = "";
-                    ProcessChart.sMovAvgRecords = null;
-                    ProcessChart.AddIndicatorToChart();
+                    txbMovAvg.Text = "";
+                    switch (id)
+                    {
+                        case 1: 
+                            ProcessChart.sMovAvgRecords1 = null;
+                            ProcessChart.nMovAvgPer1 = -1;
+                            break;
+                        case 2: 
+                            ProcessChart.sMovAvgRecords2 = null; 
+                            ProcessChart.nMovAvgPer2 = -1;
+                            break;
+                    }
+                    ProcessChart.AddIndicatorToChart(id);
                     lbData.Items.Clear();
                 }
-                cmbMovAvg1.Focus();
+                cmbMovAvg.Focus();
                 return;
             }
-            if(txbMovAvg1.Text == "")
+            if (txbMovAvg.Text == "")
             {
-                txbMovAvg1.Focus();
+                txbMovAvg.Focus();
                 return;
             }
-            if(Int32.TryParse(txbMovAvg1.Text, out period) == false)
+            if (Int32.TryParse(txbMovAvg.Text, out period) == false)
             {
-                txbMovAvg1.Text = "";
-                txbMovAvg1.Focus();
+                txbMovAvg.Text = "";
+                txbMovAvg.Focus();
                 return;
             }
 
             // get the data
             // sort the dates to be in ascending order, then remove the csv header
             var lstTemp = new List<string>();
-            lstTemp = ProcessChart.GetMovAvgData(txbSymbol.Text, cmbMovAvg1.Text, period).Reverse().ToList();
+            lstTemp = ProcessChart.GetMovAvgData(txbSymbol.Text, cmbMovAvg.Text, period).Reverse().ToList();
             lstTemp.Remove(lstTemp[lstTemp.Count() - 1]);
-            ProcessChart.sMovAvgRecords = lstTemp.ToArray();
+            switch (id)
+            {
+                case 1: 
+                    ProcessChart.sMovAvgRecords1 = lstTemp.ToArray();
+                    ProcessChart.nMovAvgPer1 = period;
+                    break;
+                case 2: 
+                    ProcessChart.sMovAvgRecords2 = lstTemp.ToArray(); 
+                    ProcessChart.nMovAvgPer2 = period;
+                    break;
+            }
+                
 
             // load into the list box
             lbData.Items.Clear();
             int nCnt = 0;
             foreach (var line in ProcessChart.sRecords)
                 lbData.Items.Add($"{nCnt++}. {line}");
-            
+
             // load into the chart
-            ProcessChart.AddIndicatorToChart();
+            ProcessChart.AddIndicatorToChart(id);
 
             // load signals into the list box
             lbData.Items.Clear();
             foreach (var line in ProcessChart.sSignals)
                 lbData.Items.Add(line);
+
         }
     }
 

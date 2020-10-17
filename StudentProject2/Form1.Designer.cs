@@ -32,6 +32,7 @@
             System.Windows.Forms.DataVisualization.Charting.Legend legend1 = new System.Windows.Forms.DataVisualization.Charting.Legend();
             System.Windows.Forms.DataVisualization.Charting.Series series1 = new System.Windows.Forms.DataVisualization.Charting.Series();
             System.Windows.Forms.DataVisualization.Charting.Series series2 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.Series series3 = new System.Windows.Forms.DataVisualization.Charting.Series();
             this.txbSymbol = new System.Windows.Forms.TextBox();
             this.dateStart = new System.Windows.Forms.DateTimePicker();
             this.dateEnd = new System.Windows.Forms.DateTimePicker();
@@ -45,6 +46,9 @@
             this.cmbMovAvg1 = new System.Windows.Forms.ComboBox();
             this.txbMovAvg1 = new System.Windows.Forms.TextBox();
             this.btnMovAvg1 = new System.Windows.Forms.Button();
+            this.btnMovAvg2 = new System.Windows.Forms.Button();
+            this.txbMovAvg2 = new System.Windows.Forms.TextBox();
+            this.cmbMovAvg2 = new System.Windows.Forms.ComboBox();
             ((System.ComponentModel.ISupportInitialize)(this.chart1)).BeginInit();
             this.SuspendLayout();
             // 
@@ -151,8 +155,15 @@
             series2.IsXValueIndexed = true;
             series2.Legend = "Legend1";
             series2.Name = "serMovAvg1";
+            series3.ChartArea = "ChartArea1";
+            series3.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
+            series3.CustomProperties = "IsXAxisQuantitative=True";
+            series3.IsXValueIndexed = true;
+            series3.Legend = "Legend1";
+            series3.Name = "serMovAvg2";
             this.chart1.Series.Add(series1);
             this.chart1.Series.Add(series2);
+            this.chart1.Series.Add(series3);
             this.chart1.Size = new System.Drawing.Size(781, 332);
             this.chart1.TabIndex = 10;
             this.chart1.Text = "chart1";
@@ -192,11 +203,49 @@
             this.btnMovAvg1.UseVisualStyleBackColor = true;
             this.btnMovAvg1.Click += new System.EventHandler(this.OnBnMovAvg1);
             // 
+            // btnMovAvg2
+            // 
+            this.btnMovAvg2.Location = new System.Drawing.Point(314, 79);
+            this.btnMovAvg2.Name = "btnMovAvg2";
+            this.btnMovAvg2.Size = new System.Drawing.Size(45, 21);
+            this.btnMovAvg2.TabIndex = 16;
+            this.btnMovAvg2.Text = "Apply";
+            this.btnMovAvg2.UseVisualStyleBackColor = true;
+            this.btnMovAvg2.Click += new System.EventHandler(this.OnBnMovAvg2);
+            // 
+            // txbMovAvg2
+            // 
+            this.txbMovAvg2.Location = new System.Drawing.Point(266, 79);
+            this.txbMovAvg2.Name = "txbMovAvg2";
+            this.txbMovAvg2.Size = new System.Drawing.Size(42, 20);
+            this.txbMovAvg2.TabIndex = 15;
+            // 
+            // cmbMovAvg2
+            // 
+            this.cmbMovAvg2.FormattingEnabled = true;
+            this.cmbMovAvg2.Items.AddRange(new object[] {
+            "",
+            "SMA",
+            "EMA",
+            "WMA",
+            "DEMA",
+            "TEMA",
+            "TRIMA",
+            "KAMA",
+            "T3"});
+            this.cmbMovAvg2.Location = new System.Drawing.Point(202, 79);
+            this.cmbMovAvg2.Name = "cmbMovAvg2";
+            this.cmbMovAvg2.Size = new System.Drawing.Size(58, 21);
+            this.cmbMovAvg2.TabIndex = 14;
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.btnMovAvg2);
+            this.Controls.Add(this.txbMovAvg2);
+            this.Controls.Add(this.cmbMovAvg2);
             this.Controls.Add(this.btnMovAvg1);
             this.Controls.Add(this.txbMovAvg1);
             this.Controls.Add(this.cmbMovAvg1);
@@ -235,6 +284,9 @@
         private System.Windows.Forms.ComboBox cmbMovAvg1;
         private System.Windows.Forms.TextBox txbMovAvg1;
         private System.Windows.Forms.Button btnMovAvg1;
+        private System.Windows.Forms.Button btnMovAvg2;
+        private System.Windows.Forms.TextBox txbMovAvg2;
+        private System.Windows.Forms.ComboBox cmbMovAvg2;
     }
 }
 
