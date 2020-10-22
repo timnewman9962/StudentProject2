@@ -14,6 +14,9 @@ using System.Windows.Forms.DataVisualization.Charting;
 using System.Net.Mail;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
+using Twilio;
+using Twilio.Rest.Api.V2010.Account;
+using Newtonsoft.Json;
 
 namespace StudentProject2
 {
@@ -73,7 +76,34 @@ namespace StudentProject2
             txbSymbol.Text = txbSymbol.Text.ToUpper();
         }
 
-        
+
+        private void OnTxbMovAvg1Chg(object sender, EventArgs e)
+        {
+            int value;
+            if(!Int32.TryParse(txbMovAvg1.Text, out value))
+            {
+                txbMovAvg1.Text = "";
+                txbMovAvg1.Focus();
+                return;
+            }
+            else
+                txbMovAvg1.Text = $"{value}";
+        }
+
+        private void OnTxbMovAvg2Chg(object sender, EventArgs e)
+        {
+            int value;
+            if(!Int32.TryParse(txbMovAvg2.Text, out value))
+            {
+                txbMovAvg2.Text = "";
+                txbMovAvg2.Focus();
+                return;
+            }
+            else
+                txbMovAvg2.Text = $"{value}";
+
+        }
+
         private void btnLoad_Click(object sender, EventArgs e)
         {
             txbDebug.Text = $"Symbol: {txbSymbol.Text}; Start Date: {dateStart.Text}; " +
@@ -107,30 +137,6 @@ namespace StudentProject2
             // load into the chart
             ProcessChart.InitChart(dateStart.Text, dateEnd.Text, chart1, chart2);
             ProcessChart.PopulateChart();
-
-            //// send SMS
-            //var client = new HttpClient();
-            //var request = new HttpRequestMessage
-            //{
-            //    Method = HttpMethod.Post,
-            //    RequestUri = new Uri("https://rapidapi.p.rapidapi.com/send"),
-            //    Headers =
-            //    {
-            //        { "x-rapidapi-host", "quick-easy-sms.p.rapidapi.com" },
-            //        { "x-rapidapi-key", "2bf61d5653mshc4f54f5afe6adf2p1452eejsn8f312618cab2" },
-            //    },
-            //    Content = new FormUrlEncodedContent(new Dictionary<string, string>
-            //    {
-            //        { "message", "message content from RapidAPI" },
-            //        { "toNumber", "13173799962" }, //1xxxxxxxxxx
-            //    }),
-            //};
-            //using (var response = await client.SendAsync(request))
-            //{
-            //    response.EnsureSuccessStatusCode();
-            //    var body = await response.Content.ReadAsStringAsync();
-            //    Console.WriteLine(body);
-            //}
         }
 
         public static class ProcessChart
@@ -434,7 +440,7 @@ namespace StudentProject2
                     {
                         bFastOverSlow = bTemp;
                         string sDirection = bFastOverSlow ? " CrossOver" : " CrossUnder";
-                        lstSignals.Add(sRecords[nStartIndex + i] + sDirection);
+                        lstSignals.Add(sRecords[nStartIndex + i] + "," + sDirection);
                     }
                 }
                 sSignals = lstSignals.ToArray();
@@ -803,13 +809,13 @@ namespace StudentProject2
 
         public struct OscillatorSpec
         {
-            public string name; //{ get; set; }    // the name as shown in the combo box
-            public List<string> queryName; //{ get; set; }    // the name used in the HTTP query
-            public int period;// { get; set; }     // the default value; '-1' means not used in the HTTP query
-            public int numPlots;// { get; set; }   // number of plots comprised in the oscillator
-            public int numCalls;// { get; set; }   // number of HTTP queries needed to get all plots
-            public int? lowThresh;// { get; set; } // value for low threshold, null means not used
-            public int? highThresh;// { get; set; } // value for high threshold, null means not used
+            public string name;             // the name as shown in the combo box
+            public List<string> queryName;  // the name used in the HTTP query
+            public int period;              // the default value; '-1' means not used in the HTTP query
+            public int numPlots;            // number of plots comprised in the oscillator
+            public int numCalls;            // number of HTTP queries needed to get all plots
+            public int? lowThresh;          // value for low threshold, null means not used
+            public int? highThresh;         // value for high threshold, null means not used
         }
 
         public static OscillatorSpec[] oscillator = new OscillatorSpec[]
@@ -888,6 +894,85 @@ namespace StudentProject2
             //foreach (var line in ProcessChart.sSignals)
             //    lbData.Items.Add(line);
         }
+
+        private void OnBnSMS(object sender, EventArgs e)
+        {
+            string sCredLocation = @"C:\Users\Tim\repos\Twilio Info.json";
+            string sInfo;
+            if (File.Exists(sCredLocation))
+            {
+                var sr = new StreamReader(sCredLocation);
+                sInfo = sr.ReadToEnd();
+                sr.Close();
+            }
+            else
+            {
+                MessageBox.Show("To send an SMS you will need to setup a Twilio account and edit the code in 'OnBnSMS()' in 'Form1.cs' to provide credentials. Use 'Twilio Info.json' in the root directory as a template", "Credentials Needed");
+                return;
+            }
+
+            var objJason = JsonConvert.DeserializeObject<Dictionary<string,string>>(sInfo);
+
+            TwilioClient.Init(objJason["accountSid"], objJason["authToken"]);
+
+            // create message showing the name of the stock, the type of last crossover, and date of crossover
+            string signal = "";
+            string[] sCross = { };
+
+            if(ProcessChart.sSignals == null || ProcessChart.sSignals.Length == 0)
+                return;
+
+            // get last crossing
+            sCross = ProcessChart.sSignals[ProcessChart.sSignals.Length - 1].Split(',');
+
+            // get moving average periods
+            if (!Int32.TryParse(txbMovAvg1.Text, out int nMA1))
+                nMA1 = -1;
+            if (!Int32.TryParse(txbMovAvg2.Text, out int nMA2))
+                nMA2 = -1;
+            string fastMA = "";
+            string slowMA = "";
+
+            // generate textual descriptions
+            if (nMA1 == -1 && nMA2 == -1)
+            {
+                signal = "No crossovers detected.";
+            }
+            else if (nMA1 == -1)
+            {
+                fastMA = $"{nMA2}-day {cmbMovAvg2.Text}";
+                slowMA = "stock's closing price";
+            }
+            else if (nMA2 == -1)
+            {
+                fastMA = $"{nMA1}-day {cmbMovAvg1.Text}";
+                slowMA = "stock's closing price";
+            }
+            else
+            {
+                fastMA = $"{Math.Min(nMA1, nMA2)}-day {(nMA1 < nMA2? cmbMovAvg1.Text: cmbMovAvg2.Text)}";
+                slowMA = $"{Math.Max(nMA1, nMA2)}-day {(nMA1 > nMA2? cmbMovAvg1.Text: cmbMovAvg2.Text)}";
+            }
+            if(signal == "")
+                signal = $"\nOn {sCross[0]}, the {fastMA} {(sCross[6] == " CrossOver" ? "crossed over" : "crossed under")} the {slowMA}.\n";
+
+            string text = 
+                $"Stock: {txbSymbol.Text}\n" +
+                $"open  {sCross[1]}\n" +
+                $"high  {sCross[2]}\n" +
+                $"low   {sCross[3]}\n" +
+                $"close {sCross[4]}\n";
+
+            //MessageBox.Show(signal + text);
+
+            var message = MessageResource.Create(
+                body: signal + text,
+                from: new Twilio.Types.PhoneNumber("+16089797234"),
+                to: new Twilio.Types.PhoneNumber("+13173799962")
+            );
+
+        }
+
     }
 
 }
