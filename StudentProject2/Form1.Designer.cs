@@ -33,6 +33,13 @@
             System.Windows.Forms.DataVisualization.Charting.Series series1 = new System.Windows.Forms.DataVisualization.Charting.Series();
             System.Windows.Forms.DataVisualization.Charting.Series series2 = new System.Windows.Forms.DataVisualization.Charting.Series();
             System.Windows.Forms.DataVisualization.Charting.Series series3 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea2 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
+            System.Windows.Forms.DataVisualization.Charting.Legend legend2 = new System.Windows.Forms.DataVisualization.Charting.Legend();
+            System.Windows.Forms.DataVisualization.Charting.Series series4 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.Series series5 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.Series series6 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.Series series7 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.Series series8 = new System.Windows.Forms.DataVisualization.Charting.Series();
             this.txbSymbol = new System.Windows.Forms.TextBox();
             this.dateStart = new System.Windows.Forms.DateTimePicker();
             this.dateEnd = new System.Windows.Forms.DateTimePicker();
@@ -49,7 +56,11 @@
             this.btnMovAvg2 = new System.Windows.Forms.Button();
             this.txbMovAvg2 = new System.Windows.Forms.TextBox();
             this.cmbMovAvg2 = new System.Windows.Forms.ComboBox();
+            this.chart2 = new System.Windows.Forms.DataVisualization.Charting.Chart();
+            this.btnOsc = new System.Windows.Forms.Button();
+            this.cmbOsc = new System.Windows.Forms.ComboBox();
             ((System.ComponentModel.ISupportInitialize)(this.chart1)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.chart2)).BeginInit();
             this.SuspendLayout();
             // 
             // txbSymbol
@@ -133,6 +144,8 @@
             // 
             // chart1
             // 
+            chartArea1.AxisY.IntervalAutoMode = System.Windows.Forms.DataVisualization.Charting.IntervalAutoMode.VariableCount;
+            chartArea1.AxisY.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Number;
             chartArea1.Name = "ChartArea1";
             this.chart1.ChartAreas.Add(chartArea1);
             legend1.Enabled = false;
@@ -167,6 +180,7 @@
             this.chart1.Size = new System.Drawing.Size(781, 332);
             this.chart1.TabIndex = 10;
             this.chart1.Text = "chart1";
+            this.chart1.Resize += new System.EventHandler(this.OnChart1Resize);
             // 
             // cmbMovAvg1
             // 
@@ -238,11 +252,99 @@
             this.cmbMovAvg2.Size = new System.Drawing.Size(58, 21);
             this.cmbMovAvg2.TabIndex = 14;
             // 
+            // chart2
+            // 
+            chartArea2.AxisX.MajorGrid.LineColor = System.Drawing.Color.Silver;
+            chartArea2.AxisY.MajorGrid.LineColor = System.Drawing.Color.Silver;
+            chartArea2.Name = "ChartArea1";
+            this.chart2.ChartAreas.Add(chartArea2);
+            legend2.Enabled = false;
+            legend2.Name = "Legend1";
+            this.chart2.Legends.Add(legend2);
+            this.chart2.Location = new System.Drawing.Point(9, 444);
+            this.chart2.Name = "chart2";
+            series4.ChartArea = "ChartArea1";
+            series4.Color = System.Drawing.Color.DarkGreen;
+            series4.CustomProperties = "IsXAxisQuantitative=False";
+            series4.IsVisibleInLegend = false;
+            series4.IsXValueIndexed = true;
+            series4.Legend = "Legend1";
+            series4.Name = "s3";
+            series5.ChartArea = "ChartArea1";
+            series5.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
+            series5.Color = System.Drawing.Color.FromArgb(((int)(((byte)(192)))), ((int)(((byte)(64)))), ((int)(((byte)(0)))));
+            series5.CustomProperties = "IsXAxisQuantitative=False";
+            series5.IsVisibleInLegend = false;
+            series5.IsXValueIndexed = true;
+            series5.Legend = "Legend1";
+            series5.Name = "s2";
+            series6.ChartArea = "ChartArea1";
+            series6.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
+            series6.Color = System.Drawing.Color.Blue;
+            series6.CustomProperties = "IsXAxisQuantitative=False";
+            series6.IsVisibleInLegend = false;
+            series6.IsXValueIndexed = true;
+            series6.Legend = "Legend1";
+            series6.Name = "s1";
+            series7.ChartArea = "ChartArea1";
+            series7.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
+            series7.Color = System.Drawing.Color.Black;
+            series7.IsXValueIndexed = true;
+            series7.Legend = "Legend1";
+            series7.Name = "lowThresh";
+            series8.ChartArea = "ChartArea1";
+            series8.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
+            series8.Color = System.Drawing.Color.Black;
+            series8.IsXValueIndexed = true;
+            series8.Legend = "Legend1";
+            series8.Name = "highThresh";
+            this.chart2.Series.Add(series4);
+            this.chart2.Series.Add(series5);
+            this.chart2.Series.Add(series6);
+            this.chart2.Series.Add(series7);
+            this.chart2.Series.Add(series8);
+            this.chart2.Size = new System.Drawing.Size(781, 93);
+            this.chart2.SuppressExceptions = true;
+            this.chart2.TabIndex = 17;
+            this.chart2.Text = "chart2";
+            // 
+            // btnOsc
+            // 
+            this.btnOsc.Location = new System.Drawing.Point(493, 79);
+            this.btnOsc.Name = "btnOsc";
+            this.btnOsc.Size = new System.Drawing.Size(45, 21);
+            this.btnOsc.TabIndex = 19;
+            this.btnOsc.Text = "Apply";
+            this.btnOsc.UseVisualStyleBackColor = true;
+            this.btnOsc.Click += new System.EventHandler(this.OnBnOsc);
+            // 
+            // cmbOsc
+            // 
+            this.cmbOsc.FormattingEnabled = true;
+            this.cmbOsc.Items.AddRange(new object[] {
+            "",
+            "RSI",
+            "STOCH",
+            "Fast STOCH",
+            "STOCH RSI",
+            "MACD",
+            "DX",
+            "ADX",
+            "CCI",
+            "ULT OSC"});
+            this.cmbOsc.Location = new System.Drawing.Point(400, 79);
+            this.cmbOsc.Name = "cmbOsc";
+            this.cmbOsc.Size = new System.Drawing.Size(87, 21);
+            this.cmbOsc.TabIndex = 18;
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.ClientSize = new System.Drawing.Size(800, 546);
+            this.Controls.Add(this.btnOsc);
+            this.Controls.Add(this.cmbOsc);
+            this.Controls.Add(this.chart2);
             this.Controls.Add(this.btnMovAvg2);
             this.Controls.Add(this.txbMovAvg2);
             this.Controls.Add(this.cmbMovAvg2);
@@ -261,9 +363,13 @@
             this.Controls.Add(this.txbSymbol);
             this.Name = "Form1";
             this.Text = "Form1";
+            this.Load += new System.EventHandler(this.OnFormLoad);
+            this.Shown += new System.EventHandler(this.OnFormShown);
             this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.OnKeyDown);
             this.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.OnPreviewKeyDown);
+            this.Resize += new System.EventHandler(this.OnResize);
             ((System.ComponentModel.ISupportInitialize)(this.chart1)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.chart2)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -287,6 +393,9 @@
         private System.Windows.Forms.Button btnMovAvg2;
         private System.Windows.Forms.TextBox txbMovAvg2;
         private System.Windows.Forms.ComboBox cmbMovAvg2;
+        private System.Windows.Forms.DataVisualization.Charting.Chart chart2;
+        private System.Windows.Forms.Button btnOsc;
+        private System.Windows.Forms.ComboBox cmbOsc;
     }
 }
 

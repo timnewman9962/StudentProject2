@@ -13,6 +13,7 @@ using System.Security.Cryptography;
 using System.Windows.Forms.DataVisualization.Charting;
 using System.Net.Mail;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 
 namespace StudentProject2
 {
@@ -22,6 +23,10 @@ namespace StudentProject2
         public static string stockDataFolder = @".\StockData\";    // This is folder where our saved stock data will go, in same folder as .exe
         public enum arrowKey { Left = 37, Up, Right, Down };
         public arrowKey inKey;
+        public int formMinusChartWidth;
+        public int formMinusChartsHeight;
+        public double chart2OverChart1;
+        public int spaceBtwCharts;
         public Form1()
         {
             InitializeComponent();
@@ -32,6 +37,35 @@ namespace StudentProject2
             txbDebug.Text = "Enter a stock symbol and start date, click \"Load\"";
             if (!Directory.Exists(stockDataFolder))
                 Directory.CreateDirectory(stockDataFolder);
+        }
+        private void OnResize(object sender, EventArgs e)
+        {
+            chart2.Width = chart1.Width = this.Width - formMinusChartWidth;
+
+            int chartsHeight = this.Height - formMinusChartsHeight;
+            chart1.Height = (int)(chartsHeight / (1 + chart2OverChart1));
+            chart2.Height = chartsHeight - chart1.Height;
+
+            Point pntLoc = new Point(chart2.Location.X, chart1.Location.Y + chart1.Height + spaceBtwCharts);
+            chart2.Location = pntLoc;
+
+        }
+        private void OnFormShown(object sender, EventArgs e)
+        {
+            formMinusChartWidth = this.Width - chart1.Width;
+
+            formMinusChartsHeight = this.Height - chart1.Height - chart2.Height;
+            chart2OverChart1 = (double)chart2.Height / chart1.Height;
+
+            spaceBtwCharts = chart2.Location.Y - chart1.Height - chart1.Location.Y;
+        }
+        private void OnFormLoad(object sender, EventArgs e)
+        {
+
+        }
+        private void OnChart1Resize(object sender, EventArgs e)
+        {
+
         }
 
         private void txbSymbol_Leave(object sender, EventArgs e)
@@ -71,7 +105,7 @@ namespace StudentProject2
                 lbData.Items.Add($"{nCnt++}. {line}");
 
             // load into the chart
-            ProcessChart.InitChart(dateStart.Text, dateEnd.Text, chart1);
+            ProcessChart.InitChart(dateStart.Text, dateEnd.Text, chart1, chart2);
             ProcessChart.PopulateChart();
 
             //// send SMS
@@ -106,7 +140,10 @@ namespace StudentProject2
             public static string[] sRecords { get; set; }
             public static string[] sMovAvgRecords1 { get; set; }
             public static string[] sMovAvgRecords2 { get; set; }
+
+            public static List<string[]> sOscRecords = new List<string[]>();
             public static Chart chtStockChart { get; set; }
+            public static Chart chtOscChart { get; set; }
 
             public static string[] sSignals;        // subset of sRecords containing indicator-generated signals
             const double SCROLLFACT = 0.05;         // factor (% of bars in display) used for scrolling, zooming increment
@@ -123,12 +160,14 @@ namespace StudentProject2
             static int nStartIndex;                 // index of sRecords where chart starts
             public static int nMovAvgPer1 = -1;     // period of moving average 1
             public static int nMovAvgPer2 = -1;     // period of moving average 2
+            public static int nActiveOscId;         // user-selected oscillator
 
-            public static void InitChart(string startDate, string endDate, Chart chartRef)
+            public static void InitChart(string startDate, string endDate, Chart chartRef1, Chart chartRef2)
             {
                 dtStart = DateTime.Parse(startDate);
                 dtEnd = DateTime.Parse(endDate);
-                chtStockChart = chartRef;
+                chtStockChart = chartRef1;
+                chtOscChart = chartRef2;
                 scrollValue = 0;
                 zoomValue = 0;
             }
@@ -199,6 +238,57 @@ namespace StudentProject2
                 // split the data into records of daily data
                 string[] sep = { "\r\n" };
                 return sData.Split(sep, System.StringSplitOptions.RemoveEmptyEntries);
+            }
+            public static List<string[]> GetOscData(string symbol, OscillatorSpec osc)
+            {
+                // Determine the base filename, which consists of the arguments and todays date
+                string fileBase = $"{symbol}_{osc.queryName[0]}_P";
+                string fileDate = "_" + DateTime.Now.ToString("d").Replace('/', '-');
+
+                string sData = "empty";  // this will hold our oscillator data, whether from a file or AlphaVantage
+                                         // If the file exists, read the data from it; otherwise get the data online
+                var lData = new List<string[]>();
+
+                // split the data into records of daily data
+                string[] sep = { "\r\n" };
+
+                int nFileNum;
+                for (nFileNum = 0; nFileNum < osc.numCalls; nFileNum++)
+                {
+                    string sTmp = stockDataFolder + fileBase + nFileNum + fileDate + ".csv";
+                    if (File.Exists(sTmp))
+                    {
+                        var sr = new StreamReader(sTmp);
+                        sData = sr.ReadToEnd();
+                        lData.Add(sData.Split(sep, System.StringSplitOptions.RemoveEmptyEntries));
+                        sr.Close();
+                    }
+                    else break;
+                }
+
+                if(nFileNum != osc.numCalls)   // loop terminated early from file not found
+                {
+                    // delete older versions
+                    string[] old = Directory.GetFiles(stockDataFolder, $"{symbol}_{osc.queryName[0]}_*.csv");
+                    if (old.Length > 0)
+                    {
+                        foreach (var item in old)
+                            if (item != null)
+                                File.Delete(item);
+                    }
+
+                    for (int i = 0; i < osc.numCalls; i++)
+                    {
+                        var conn = new AVConnection("AYZBS9JXW6CTSR3P");  // get your own key at (https://www.alphavantage.co/support/#api-key)
+                        sData = conn.GetOsc_CSVfromURL(symbol, osc, i);
+                        lData.Add(sData.Split(sep, System.StringSplitOptions.RemoveEmptyEntries));
+
+                        // save a copy
+                        File.WriteAllText(stockDataFolder + fileBase + i + fileDate + ".csv", sData);
+                    }
+                }
+
+                return lData;
             }
             public static void PopulateChart()
             {
@@ -349,6 +439,104 @@ namespace StudentProject2
                 }
                 sSignals = lstSignals.ToArray();
             }
+
+            public static void PopulateOscillator(OscillatorSpec osc)
+            {
+                // This function plots up to 3 lines on the oscilator graph; the data are stored in sOscRecords,
+                // which is a list of 3 string arrays.  When populated, these CSV arrays contain the date as the first column.
+                // In some cases the all plot data are contained in sOscRecords[0], and in other cases the 2nd and 3rd plots are
+                // contained in sOscRecords[1] and sOscRecords[2]. This is determined by osc.numPlots which can be up to 3, and by
+                // osc.numCalls, which is how many arrays in sOscRecords are populated.  If the ratio osc.numPlots / osc.numCalls
+                // is for example 3, then only sOscRecords[0] is populated.  But if the ratio is 1, then osc.numPlots inidcates if
+                // sOscRecords[1] and sOscRecords[2] are populated.
+
+                chtOscChart.Series["s1"].Points.Clear();
+                chtOscChart.Series["s2"].Points.Clear();
+                chtOscChart.Series["s3"].Points.Clear();
+                chtOscChart.Series["lowThresh"].Points.Clear();
+                chtOscChart.Series["highThresh"].Points.Clear();
+                if (osc.name == "")
+                    return;
+
+                // setup variables for getting the lowest low and highest high; use to scale the vertical axis
+                decimal yMin = (decimal)(osc.lowThresh == null? 0: osc.lowThresh);
+                decimal yMax = (decimal)(osc.highThresh == null? 0: osc.highThresh);
+                decimal val;
+
+                // setup our daily record, it is ordered: s1, s2, s3; each one a single line; s2 and s3 are optional
+                int nPlotsInFile = osc.numPlots / osc.numCalls;
+                sEODdata = new string[nPlotsInFile + 1];    // date plus the number of plots
+
+                nStartIndex = -1;
+
+                // go through each record to plot it
+                for (int c = 0; c < osc.numCalls; c++)      // every HTTP call produces an array in List<string[]> sOscRecords
+                {
+                    string sSeriesName = "s1";
+                    for (int i = 0; i < sOscRecords[0].Length; i++)     // sOscRecords[0] is always populated
+                    {
+                        // split into fields
+                        sEODdata = sOscRecords[c][i].Split(',');
+
+                        // use only the data requested
+                        if (DateTime.Parse(sEODdata[0]) < dt0)
+                            continue;
+                        if (DateTime.Parse(sEODdata[0]) > dt1)
+                            break;
+                        if (nStartIndex == -1)
+                            nStartIndex = i;
+
+                        for (int j = 1; j <= nPlotsInFile; j++)
+                        {
+                            // process low and high
+                            if (yMin == 0)
+                                yMin = decimal.Parse(sEODdata[j]);    // initialize low
+                            val = decimal.Parse(sEODdata[j]);
+                            yMin = val < yMin ? val : yMin;
+                            yMax = val > yMax ? val : yMax;
+
+                            // plot the lines, ordered: s1, s2, s3
+                            sSeriesName = $"s{Math.Max(j, c + 1)}";
+                            chtOscChart.Series[sSeriesName].Points.AddXY(sEODdata[0],
+                                decimal.Parse(sEODdata[j]));
+                        }
+                        // plot the thresholds
+                        if(c == 0)
+                        {
+                            if (osc.lowThresh != null)
+                                chtOscChart.Series["lowThresh"].Points.AddXY(sEODdata[0],
+                                    (decimal)osc.lowThresh);
+                            if (osc.highThresh != null)
+                                chtOscChart.Series["highThresh"].Points.AddXY(sEODdata[0],
+                                    (decimal)osc.highThresh);
+                        }
+                    }
+                    if (c > 0)
+                    {
+                        chtOscChart.AlignDataPointsByAxisLabel($"s1, {sSeriesName}");
+
+                        if (osc.lowThresh != null)
+                            chtOscChart.AlignDataPointsByAxisLabel($"s1, lowThresh");
+                        if (osc.highThresh != null)
+                            chtOscChart.AlignDataPointsByAxisLabel($"s1, highThresh");
+                    }
+                }
+                // use the max and min values from above for Y-axis scaling
+                chtOscChart.ChartAreas[0].AxisY.Minimum = Math.Floor((double)yMin);
+                chtOscChart.ChartAreas[0].AxisY.Maximum = Math.Ceiling((double)yMax);
+                // set histogram for s3 for MACD
+                if (osc.name == "MACD")
+                {
+                    chtOscChart.Series["s3"].ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Column;
+                    chtOscChart.Series["s3"].Color = System.Drawing.Color.Turquoise;
+                }
+                else
+                {
+                    chtOscChart.Series["s3"].ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
+                    chtOscChart.Series["s3"].Color = System.Drawing.Color.DarkGreen;
+                }
+            }
+
             public static void SetPanAndZoom(arrowKey inArrow)
             {
                 // This function is called whenever one of the arrow keys is pressed.
@@ -360,6 +548,8 @@ namespace StudentProject2
                     case arrowKey.Down:  ++zoomValue; break;
                 }
                 PopulateChart();
+                if (sOscRecords.Count != 0 && sOscRecords[0] != null)
+                    PopulateOscillator(oscillator[nActiveOscId]);
             }
             static void CalculateDates()
             {
@@ -470,6 +660,24 @@ namespace StudentProject2
                                                             $"interval=daily&"   +
                                                             $"time_period={period}&" +
                                                             $"series_type=close&"    +
+                                                            $"apikey={_apiKey}&" +
+                                                            $"datatype=csv");
+
+                var resp = (HttpWebResponse)req.GetResponse();
+                var sr = new StreamReader(resp.GetResponseStream());
+                string results = sr.ReadToEnd();
+                sr.Close();
+                return results;
+            }
+            public string GetOsc_CSVfromURL(string symbol, OscillatorSpec osc, int callNum)
+            {
+                string sPeriod = osc.period == -1 ? "" : $"time_period={osc.period}&";
+                var req = (HttpWebRequest)WebRequest.Create("https://" + $"www.alphavantage.co/query?" +
+                                                            $"function={osc.queryName[callNum]}&" +
+                                                            $"symbol={symbol}&"  +
+                                                            $"interval=daily&"   +
+                                                            $"{sPeriod}"         +
+                                                            $"series_type=open&" +
                                                             $"apikey={_apiKey}&" +
                                                             $"datatype=csv");
 
@@ -591,6 +799,94 @@ namespace StudentProject2
             foreach (var line in ProcessChart.sSignals)
                 lbData.Items.Add(line);
 
+        }
+
+        public struct OscillatorSpec
+        {
+            public string name; //{ get; set; }    // the name as shown in the combo box
+            public List<string> queryName; //{ get; set; }    // the name used in the HTTP query
+            public int period;// { get; set; }     // the default value; '-1' means not used in the HTTP query
+            public int numPlots;// { get; set; }   // number of plots comprised in the oscillator
+            public int numCalls;// { get; set; }   // number of HTTP queries needed to get all plots
+            public int? lowThresh;// { get; set; } // value for low threshold, null means not used
+            public int? highThresh;// { get; set; } // value for high threshold, null means not used
+        }
+
+        public static OscillatorSpec[] oscillator = new OscillatorSpec[]
+        {
+            new OscillatorSpec(){ name = "", queryName = null, period = -1, numPlots = 0, numCalls = 0, lowThresh = null, highThresh = null },
+            new OscillatorSpec(){ name = "RSI", queryName = new List<string>(){"RSI"}, period = 14, numPlots = 1, numCalls = 1, lowThresh = 30, highThresh = 70 },
+            new OscillatorSpec(){ name = "STOCH", queryName = new List<string>(){"STOCH"}, period = -1, numPlots = 2, numCalls = 1, lowThresh = 20, highThresh = 80 },
+            new OscillatorSpec(){ name = "Fast STOCH", queryName = new List<string>(){"STOCHF"}, period = -1, numPlots = 2, numCalls = 1, lowThresh = 20, highThresh = 80 },
+            new OscillatorSpec(){ name = "STOCH RSI", queryName = new List<string>(){"STOCHRSI"}, period = 14, numPlots = 2, numCalls = 1, lowThresh = 20, highThresh = 80 },
+            new OscillatorSpec(){ name = "MACD", queryName = new List<string>(){"MACD"}, period = -1, numPlots = 3, numCalls = 1, lowThresh = null, highThresh = null },
+            new OscillatorSpec(){ name = "DX", queryName = new List<string>(){"DX", "MINUS_DM", "PLUS_DM"}, period = 14, numPlots = 3, numCalls = 3, lowThresh = 25, highThresh = null },
+            new OscillatorSpec(){ name = "ADX", queryName = new List<string>(){"ADX", "MINUS_DI", "PLUS_DI"}, period = 14, numPlots = 3, numCalls = 3, lowThresh = 25, highThresh = null },
+            new OscillatorSpec(){ name = "CCI", queryName = new List<string>(){"CCI"}, period = 20, numPlots = 1, numCalls = 1, lowThresh = -100, highThresh = 100 },
+            new OscillatorSpec(){ name = "ULT OSC", queryName = new List<string>(){"ULTOSC"}, period = -1, numPlots = 1, numCalls = 1, lowThresh = 30, highThresh = 70 },
+        };
+       
+        private void OnBnOsc(object sender, EventArgs e)
+        {
+            // validate settings
+            if (ProcessChart.sRecords == null)
+            {
+                txbSymbol.Focus();
+                return;
+            }
+
+            if (cmbOsc.Text == "")
+            {
+                if(ProcessChart.sOscRecords == null || ProcessChart.sOscRecords.Count() == 0)
+                {
+                    cmbOsc.Focus();
+                    return;
+                }
+            }
+
+            ProcessChart.sOscRecords.Clear();
+
+            // get the data
+            // sort the dates to be in ascending order, then remove the csv header
+            // find the oscillator from the value in the combo box
+            int nIndex = 0;
+            for (int i = 0; i < oscillator.Length; i++)
+            {
+                if(oscillator[i].name == cmbOsc.Text)
+                {
+                    nIndex = i;
+                    break;
+                }
+            }
+            ProcessChart.nActiveOscId = nIndex;
+            lbData.Items.Clear();
+            if(nIndex == 0)
+            {
+                ProcessChart.PopulateOscillator(oscillator[nIndex]);
+                return;
+            }
+            var lstData = new List<string[]>();
+            var lstTemp = new List<string>();
+            lstData = ProcessChart.GetOscData(txbSymbol.Text, oscillator[nIndex]);
+            for (int i = 0; i < oscillator[nIndex].numCalls; i++)
+            {
+                lstTemp = lstData[i].Reverse().ToList();
+                lstTemp.Remove(lstTemp[lstTemp.Count() - 1]);
+                ProcessChart.sOscRecords.Add(lstTemp.ToArray());
+            }
+
+            // load into the list box
+            int nCnt = 0;
+            foreach (var line in ProcessChart.sOscRecords[0])
+                lbData.Items.Add($"{nCnt++}. {line}");
+
+            // load into the chart
+            ProcessChart.PopulateOscillator(oscillator[nIndex]);
+
+            //// load signals into the list box
+            //lbData.Items.Clear();
+            //foreach (var line in ProcessChart.sSignals)
+            //    lbData.Items.Add(line);
         }
     }
 
