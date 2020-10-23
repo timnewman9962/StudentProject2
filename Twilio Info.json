@@ -1,6 +1,5 @@
-[
-   {
-      "accountSid": "123456ABCDEfg",
-      "authToken": "789HIJklmn"
-   }
-]
+{
+  "accountSid": "AbCdEfG1234567",
+  "authToken": "1234567aBcDeFg",
+  "acctPhone": "+15555551212"
+}

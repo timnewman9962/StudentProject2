@@ -22,14 +22,37 @@ namespace StudentProject2
 {
     public partial class Form1 : Form
     {
-        //public static string stockDataFolder = ".\\StockData\\";    // This is folder where our saved stock data will go, in same folder as .exe
         public static string stockDataFolder = @".\StockData\";    // This is folder where our saved stock data will go, in same folder as .exe
+        public static string sCredLocation = @"C:\Users\Tim\repos\Twilio Info.json"; // This is the location of Twilio credentials, not part of repo
         public enum arrowKey { Left = 37, Up, Right, Down };
         public arrowKey inKey;
         public int formMinusChartWidth;
         public int formMinusChartsHeight;
         public double chart2OverChart1;
         public int spaceBtwCharts;
+        public struct OscillatorSpec
+        {
+            public string name;             // the name as shown in the combo box
+            public List<string> queryName;  // the name used in the HTTP query
+            public int period;              // the default value; '-1' means not used in the HTTP query
+            public int numPlots;            // number of plots comprised in the oscillator
+            public int numCalls;            // number of HTTP queries needed to get all plots
+            public int? lowThresh;          // value for low threshold, null means not used
+            public int? highThresh;         // value for high threshold, null means not used
+        }
+        public static OscillatorSpec[] oscillator = new OscillatorSpec[]
+        {
+            new OscillatorSpec(){ name = "", queryName = null, period = -1, numPlots = 0, numCalls = 0, lowThresh = null, highThresh = null },
+            new OscillatorSpec(){ name = "RSI", queryName = new List<string>(){"RSI"}, period = 14, numPlots = 1, numCalls = 1, lowThresh = 30, highThresh = 70 },
+            new OscillatorSpec(){ name = "STOCH", queryName = new List<string>(){"STOCH"}, period = -1, numPlots = 2, numCalls = 1, lowThresh = 20, highThresh = 80 },
+            new OscillatorSpec(){ name = "Fast STOCH", queryName = new List<string>(){"STOCHF"}, period = -1, numPlots = 2, numCalls = 1, lowThresh = 20, highThresh = 80 },
+            new OscillatorSpec(){ name = "STOCH RSI", queryName = new List<string>(){"STOCHRSI"}, period = 14, numPlots = 2, numCalls = 1, lowThresh = 20, highThresh = 80 },
+            new OscillatorSpec(){ name = "MACD", queryName = new List<string>(){"MACD"}, period = -1, numPlots = 3, numCalls = 1, lowThresh = null, highThresh = null },
+            new OscillatorSpec(){ name = "DX", queryName = new List<string>(){"DX", "MINUS_DM", "PLUS_DM"}, period = 14, numPlots = 3, numCalls = 3, lowThresh = 25, highThresh = null },
+            new OscillatorSpec(){ name = "ADX", queryName = new List<string>(){"ADX", "MINUS_DI", "PLUS_DI"}, period = 14, numPlots = 3, numCalls = 3, lowThresh = 25, highThresh = null },
+            new OscillatorSpec(){ name = "CCI", queryName = new List<string>(){"CCI"}, period = 20, numPlots = 1, numCalls = 1, lowThresh = -100, highThresh = 100 },
+            new OscillatorSpec(){ name = "ULT OSC", queryName = new List<string>(){"ULTOSC"}, period = -1, numPlots = 1, numCalls = 1, lowThresh = 30, highThresh = 70 },
+        };
         public Form1()
         {
             InitializeComponent();
@@ -41,6 +64,10 @@ namespace StudentProject2
             if (!Directory.Exists(stockDataFolder))
                 Directory.CreateDirectory(stockDataFolder);
         }
+
+        // ====================================================================================================
+        //      Form1 GUI Handlers 
+        // ====================================================================================================
         private void OnResize(object sender, EventArgs e)
         {
             chart2.Width = chart1.Width = this.Width - formMinusChartWidth;
@@ -70,13 +97,10 @@ namespace StudentProject2
         {
 
         }
-
         private void txbSymbol_Leave(object sender, EventArgs e)
         {
             txbSymbol.Text = txbSymbol.Text.ToUpper();
         }
-
-
         private void OnTxbMovAvg1Chg(object sender, EventArgs e)
         {
             int value;
@@ -89,7 +113,6 @@ namespace StudentProject2
             else
                 txbMovAvg1.Text = $"{value}";
         }
-
         private void OnTxbMovAvg2Chg(object sender, EventArgs e)
         {
             int value;
@@ -103,7 +126,6 @@ namespace StudentProject2
                 txbMovAvg2.Text = $"{value}";
 
         }
-
         private void btnLoad_Click(object sender, EventArgs e)
         {
             txbDebug.Text = $"Symbol: {txbSymbol.Text}; Start Date: {dateStart.Text}; " +
@@ -138,8 +160,259 @@ namespace StudentProject2
             ProcessChart.InitChart(dateStart.Text, dateEnd.Text, chart1, chart2);
             ProcessChart.PopulateChart();
         }
+        private void OnBnMovAvg1(object sender, EventArgs e)
+        {
+            OnBnMovAvg(1, cmbMovAvg1, txbMovAvg1, ProcessChart.sMovAvgRecords1);
+        }
+        private void OnBnMovAvg2(object sender, EventArgs e)
+        {
 
-        public static class ProcessChart
+            OnBnMovAvg(2, cmbMovAvg2, txbMovAvg2, ProcessChart.sMovAvgRecords2);
+        }
+        private void OnBnMovAvg(int id, ComboBox cmbMovAvg, TextBox txbMovAvg, string[] sMovAvgRecords)
+        {
+            int period;
+            // validate settings
+            if(ProcessChart.sRecords == null)
+            {
+                txbSymbol.Focus();
+                return;
+            }
+
+            if(cmbMovAvg.Text == "")
+            {
+                if (sMovAvgRecords != null)
+                {
+                    txbMovAvg.Text = "";
+                    switch (id)
+                    {
+                        case 1: 
+                            ProcessChart.sMovAvgRecords1 = null;
+                            ProcessChart.nMovAvgPer1 = -1;
+                            break;
+                        case 2: 
+                            ProcessChart.sMovAvgRecords2 = null; 
+                            ProcessChart.nMovAvgPer2 = -1;
+                            break;
+                    }
+                    ProcessChart.AddIndicatorToChart(id);
+                    lbData.Items.Clear();
+                }
+                cmbMovAvg.Focus();
+                return;
+            }
+            if (txbMovAvg.Text == "")
+            {
+                txbMovAvg.Focus();
+                return;
+            }
+            if (Int32.TryParse(txbMovAvg.Text, out period) == false)
+            {
+                txbMovAvg.Text = "";
+                txbMovAvg.Focus();
+                return;
+            }
+
+            // get the data
+            // sort the dates to be in ascending order, then remove the csv header
+            var lstTemp = new List<string>();
+            lstTemp = ProcessChart.GetMovAvgData(txbSymbol.Text, cmbMovAvg.Text, period).Reverse().ToList();
+            lstTemp.Remove(lstTemp[lstTemp.Count() - 1]);
+            switch (id)
+            {
+                case 1: 
+                    ProcessChart.sMovAvgRecords1 = lstTemp.ToArray();
+                    ProcessChart.nMovAvgPer1 = period;
+                    break;
+                case 2: 
+                    ProcessChart.sMovAvgRecords2 = lstTemp.ToArray(); 
+                    ProcessChart.nMovAvgPer2 = period;
+                    break;
+            }
+                
+
+            // load into the list box
+            lbData.Items.Clear();
+            int nCnt = 0;
+            foreach (var line in ProcessChart.sRecords)
+                lbData.Items.Add($"{nCnt++}. {line}");
+
+            // load into the chart
+            ProcessChart.AddIndicatorToChart(id);
+
+            // load signals into the list box
+            lbData.Items.Clear();
+            foreach (var line in ProcessChart.sSignals)
+                lbData.Items.Add(line);
+
+        }
+        private void OnBnOsc(object sender, EventArgs e)
+        {
+            // validate settings
+            if (ProcessChart.sRecords == null)
+            {
+                txbSymbol.Focus();
+                return;
+            }
+
+            if (cmbOsc.Text == "")
+            {
+                if (ProcessChart.sOscRecords == null || ProcessChart.sOscRecords.Count() == 0)
+                {
+                    cmbOsc.Focus();
+                    return;
+                }
+            }
+
+            ProcessChart.sOscRecords.Clear();
+
+            // get the data
+            // sort the dates to be in ascending order, then remove the csv header
+            // find the oscillator from the value in the combo box
+            int nIndex = 0;
+            for (int i = 0; i < oscillator.Length; i++)
+            {
+                if (oscillator[i].name == cmbOsc.Text)
+                {
+                    nIndex = i;
+                    break;
+                }
+            }
+            ProcessChart.nActiveOscId = nIndex;
+            lbData.Items.Clear();
+            if (nIndex == 0)
+            {
+                ProcessChart.PopulateOscillator(oscillator[nIndex]);
+                return;
+            }
+            var lstData = new List<string[]>();
+            var lstTemp = new List<string>();
+            lstData = ProcessChart.GetOscData(txbSymbol.Text, oscillator[nIndex]);
+            for (int i = 0; i < oscillator[nIndex].numCalls; i++)
+            {
+                lstTemp = lstData[i].Reverse().ToList();
+                lstTemp.Remove(lstTemp[lstTemp.Count() - 1]);
+                ProcessChart.sOscRecords.Add(lstTemp.ToArray());
+            }
+
+            // load into the list box
+            int nCnt = 0;
+            foreach (var line in ProcessChart.sOscRecords[0])
+                lbData.Items.Add($"{nCnt++}. {line}");
+
+            // load into the chart
+            ProcessChart.PopulateOscillator(oscillator[nIndex]);
+
+            //// load signals into the list box
+            //lbData.Items.Clear();
+            //foreach (var line in ProcessChart.sSignals)
+            //    lbData.Items.Add(line);
+        }
+        private void OnBnSMS(object sender, EventArgs e)
+        {
+            string sInfo;
+            if (File.Exists(sCredLocation))
+            {
+                var sr = new StreamReader(sCredLocation);
+                sInfo = sr.ReadToEnd();
+                sr.Close();
+            }
+            else
+            {
+                MessageBox.Show("To send an SMS you will need to setup a Twilio account and edit the code in 'OnBnSMS()' in 'Form1.cs' to provide credentials. Use 'Twilio Info.json' in the root directory as a template", "Credentials Needed");
+                return;
+            }
+
+            var objJason = JsonConvert.DeserializeObject<Dictionary<string, string>>(sInfo);
+            TwilioClient.Init(objJason["accountSid"], objJason["authToken"]);
+
+            // create message showing the name of the stock, the type of last crossover, and date of crossover
+            string signal = "";
+            string[] sCross = { };
+
+            if (ProcessChart.sSignals == null || ProcessChart.sSignals.Length == 0)
+                return;
+
+            // get last crossing
+            sCross = ProcessChart.sSignals[ProcessChart.sSignals.Length - 1].Split(',');
+
+            // get moving average periods
+            if (!Int32.TryParse(txbMovAvg1.Text, out int nMA1))
+                nMA1 = -1;
+            if (!Int32.TryParse(txbMovAvg2.Text, out int nMA2))
+                nMA2 = -1;
+            string fastMA = "";
+            string slowMA = "";
+
+            // generate textual descriptions
+            if (nMA1 == -1 && nMA2 == -1)
+            {
+                signal = "No crossovers detected.";
+            }
+            else if (nMA1 == -1)
+            {
+                fastMA = $"{nMA2}-day {cmbMovAvg2.Text}";
+                slowMA = "stock's closing price";
+            }
+            else if (nMA2 == -1)
+            {
+                fastMA = $"{nMA1}-day {cmbMovAvg1.Text}";
+                slowMA = "stock's closing price";
+            }
+            else
+            {
+                fastMA = $"{Math.Min(nMA1, nMA2)}-day {(nMA1 < nMA2 ? cmbMovAvg1.Text : cmbMovAvg2.Text)}";
+                slowMA = $"{Math.Max(nMA1, nMA2)}-day {(nMA1 > nMA2 ? cmbMovAvg1.Text : cmbMovAvg2.Text)}";
+            }
+            if (signal == "")
+                signal = $"\nOn {sCross[0]}, the {fastMA} {(sCross[6] == " CrossOver" ? "crossed over" : "crossed under")} the {slowMA}.\n";
+
+            string text =
+                $"Stock: {txbSymbol.Text}\n" +
+                $"open  {sCross[1]}\n" +
+                $"high  {sCross[2]}\n" +
+                $"low   {sCross[3]}\n" +
+                $"close {sCross[4]}\n";
+
+            //MessageBox.Show(signal + text);
+
+            // send SMS
+            var sTemp = txbSmsPhoneNum.Text;
+            txbSmsPhoneNum.Text = "sending SMS...";
+            var message = MessageResource.Create(
+                body: signal + text,
+                from: new Twilio.Types.PhoneNumber(objJason["acctPhone"]),
+                to: new Twilio.Types.PhoneNumber($"+1{sTemp}")
+            );
+            txbSmsPhoneNum.Text = sTemp;
+
+        }
+        private void OnPreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
+        {
+            e.IsInputKey = true;    // needed to detect the arrow keys
+        }
+        private void OnKeyDown(object sender, KeyEventArgs e)
+        {
+            if(e.KeyValue >= 37 && e.KeyValue <= 40)
+            {
+                inKey = (arrowKey)e.KeyValue;
+                e.Handled = true;
+                ProcessChart.SetPanAndZoom(inKey);
+                // refresh the crossover data in the listbox
+                if (ProcessChart.sSignals != null)
+                {
+                    lbData.Items.Clear();
+                    foreach (var line in ProcessChart.sSignals)
+                        lbData.Items.Add(line);
+                }
+            }
+        }
+        // ====================================================================================================
+        //      GUI Handlers End
+        // ====================================================================================================
+        
+        // === Chart Handler ==================================================================================
+       public static class ProcessChart
         {
             public static DateTime dtStart { get; set; }
             public static DateTime dtEnd { get; set; }
@@ -634,8 +907,11 @@ namespace StudentProject2
                 zoomValPrev = zoomValue;
             }
         }
+        // === Chart Handler End ==============================================================================
 
-        public class AVConnection
+        
+         // === Stock Data API Handler ========================================================================
+       public class AVConnection
         {
             private readonly string _apiKey;
             public AVConnection(string apiKey)
@@ -693,286 +969,8 @@ namespace StudentProject2
                 sr.Close();
                 return results;
             }
-
         }
-
-        private void OnPreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
-        {
-            e.IsInputKey = true;    // needed to detect the arrow keys
-        }
-
-        private void OnKeyDown(object sender, KeyEventArgs e)
-        {
-            if(e.KeyValue >= 37 && e.KeyValue <= 40)
-            {
-                inKey = (arrowKey)e.KeyValue;
-                e.Handled = true;
-                ProcessChart.SetPanAndZoom(inKey);
-                // refresh the crossover data in the listbox
-                if (ProcessChart.sSignals != null)
-                {
-                    lbData.Items.Clear();
-                    foreach (var line in ProcessChart.sSignals)
-                        lbData.Items.Add(line);
-                }
-            }
-        }
-
-        private void OnBnMovAvg1(object sender, EventArgs e)
-        {
-            OnBnMovAvg(1, cmbMovAvg1, txbMovAvg1, ProcessChart.sMovAvgRecords1);
-        }
-
-        private void OnBnMovAvg2(object sender, EventArgs e)
-        {
-
-            OnBnMovAvg(2, cmbMovAvg2, txbMovAvg2, ProcessChart.sMovAvgRecords2);
-        }
-
-        private void OnBnMovAvg(int id, ComboBox cmbMovAvg, TextBox txbMovAvg, string[] sMovAvgRecords)
-        {
-            int period;
-            // validate settings
-            if(ProcessChart.sRecords == null)
-            {
-                txbSymbol.Focus();
-                return;
-            }
-
-            if(cmbMovAvg.Text == "")
-            {
-                if (sMovAvgRecords != null)
-                {
-                    txbMovAvg.Text = "";
-                    switch (id)
-                    {
-                        case 1: 
-                            ProcessChart.sMovAvgRecords1 = null;
-                            ProcessChart.nMovAvgPer1 = -1;
-                            break;
-                        case 2: 
-                            ProcessChart.sMovAvgRecords2 = null; 
-                            ProcessChart.nMovAvgPer2 = -1;
-                            break;
-                    }
-                    ProcessChart.AddIndicatorToChart(id);
-                    lbData.Items.Clear();
-                }
-                cmbMovAvg.Focus();
-                return;
-            }
-            if (txbMovAvg.Text == "")
-            {
-                txbMovAvg.Focus();
-                return;
-            }
-            if (Int32.TryParse(txbMovAvg.Text, out period) == false)
-            {
-                txbMovAvg.Text = "";
-                txbMovAvg.Focus();
-                return;
-            }
-
-            // get the data
-            // sort the dates to be in ascending order, then remove the csv header
-            var lstTemp = new List<string>();
-            lstTemp = ProcessChart.GetMovAvgData(txbSymbol.Text, cmbMovAvg.Text, period).Reverse().ToList();
-            lstTemp.Remove(lstTemp[lstTemp.Count() - 1]);
-            switch (id)
-            {
-                case 1: 
-                    ProcessChart.sMovAvgRecords1 = lstTemp.ToArray();
-                    ProcessChart.nMovAvgPer1 = period;
-                    break;
-                case 2: 
-                    ProcessChart.sMovAvgRecords2 = lstTemp.ToArray(); 
-                    ProcessChart.nMovAvgPer2 = period;
-                    break;
-            }
-                
-
-            // load into the list box
-            lbData.Items.Clear();
-            int nCnt = 0;
-            foreach (var line in ProcessChart.sRecords)
-                lbData.Items.Add($"{nCnt++}. {line}");
-
-            // load into the chart
-            ProcessChart.AddIndicatorToChart(id);
-
-            // load signals into the list box
-            lbData.Items.Clear();
-            foreach (var line in ProcessChart.sSignals)
-                lbData.Items.Add(line);
-
-        }
-
-        public struct OscillatorSpec
-        {
-            public string name;             // the name as shown in the combo box
-            public List<string> queryName;  // the name used in the HTTP query
-            public int period;              // the default value; '-1' means not used in the HTTP query
-            public int numPlots;            // number of plots comprised in the oscillator
-            public int numCalls;            // number of HTTP queries needed to get all plots
-            public int? lowThresh;          // value for low threshold, null means not used
-            public int? highThresh;         // value for high threshold, null means not used
-        }
-
-        public static OscillatorSpec[] oscillator = new OscillatorSpec[]
-        {
-            new OscillatorSpec(){ name = "", queryName = null, period = -1, numPlots = 0, numCalls = 0, lowThresh = null, highThresh = null },
-            new OscillatorSpec(){ name = "RSI", queryName = new List<string>(){"RSI"}, period = 14, numPlots = 1, numCalls = 1, lowThresh = 30, highThresh = 70 },
-            new OscillatorSpec(){ name = "STOCH", queryName = new List<string>(){"STOCH"}, period = -1, numPlots = 2, numCalls = 1, lowThresh = 20, highThresh = 80 },
-            new OscillatorSpec(){ name = "Fast STOCH", queryName = new List<string>(){"STOCHF"}, period = -1, numPlots = 2, numCalls = 1, lowThresh = 20, highThresh = 80 },
-            new OscillatorSpec(){ name = "STOCH RSI", queryName = new List<string>(){"STOCHRSI"}, period = 14, numPlots = 2, numCalls = 1, lowThresh = 20, highThresh = 80 },
-            new OscillatorSpec(){ name = "MACD", queryName = new List<string>(){"MACD"}, period = -1, numPlots = 3, numCalls = 1, lowThresh = null, highThresh = null },
-            new OscillatorSpec(){ name = "DX", queryName = new List<string>(){"DX", "MINUS_DM", "PLUS_DM"}, period = 14, numPlots = 3, numCalls = 3, lowThresh = 25, highThresh = null },
-            new OscillatorSpec(){ name = "ADX", queryName = new List<string>(){"ADX", "MINUS_DI", "PLUS_DI"}, period = 14, numPlots = 3, numCalls = 3, lowThresh = 25, highThresh = null },
-            new OscillatorSpec(){ name = "CCI", queryName = new List<string>(){"CCI"}, period = 20, numPlots = 1, numCalls = 1, lowThresh = -100, highThresh = 100 },
-            new OscillatorSpec(){ name = "ULT OSC", queryName = new List<string>(){"ULTOSC"}, period = -1, numPlots = 1, numCalls = 1, lowThresh = 30, highThresh = 70 },
-        };
-       
-        private void OnBnOsc(object sender, EventArgs e)
-        {
-            // validate settings
-            if (ProcessChart.sRecords == null)
-            {
-                txbSymbol.Focus();
-                return;
-            }
-
-            if (cmbOsc.Text == "")
-            {
-                if(ProcessChart.sOscRecords == null || ProcessChart.sOscRecords.Count() == 0)
-                {
-                    cmbOsc.Focus();
-                    return;
-                }
-            }
-
-            ProcessChart.sOscRecords.Clear();
-
-            // get the data
-            // sort the dates to be in ascending order, then remove the csv header
-            // find the oscillator from the value in the combo box
-            int nIndex = 0;
-            for (int i = 0; i < oscillator.Length; i++)
-            {
-                if(oscillator[i].name == cmbOsc.Text)
-                {
-                    nIndex = i;
-                    break;
-                }
-            }
-            ProcessChart.nActiveOscId = nIndex;
-            lbData.Items.Clear();
-            if(nIndex == 0)
-            {
-                ProcessChart.PopulateOscillator(oscillator[nIndex]);
-                return;
-            }
-            var lstData = new List<string[]>();
-            var lstTemp = new List<string>();
-            lstData = ProcessChart.GetOscData(txbSymbol.Text, oscillator[nIndex]);
-            for (int i = 0; i < oscillator[nIndex].numCalls; i++)
-            {
-                lstTemp = lstData[i].Reverse().ToList();
-                lstTemp.Remove(lstTemp[lstTemp.Count() - 1]);
-                ProcessChart.sOscRecords.Add(lstTemp.ToArray());
-            }
-
-            // load into the list box
-            int nCnt = 0;
-            foreach (var line in ProcessChart.sOscRecords[0])
-                lbData.Items.Add($"{nCnt++}. {line}");
-
-            // load into the chart
-            ProcessChart.PopulateOscillator(oscillator[nIndex]);
-
-            //// load signals into the list box
-            //lbData.Items.Clear();
-            //foreach (var line in ProcessChart.sSignals)
-            //    lbData.Items.Add(line);
-        }
-
-        private void OnBnSMS(object sender, EventArgs e)
-        {
-            string sCredLocation = @"C:\Users\Tim\repos\Twilio Info.json";
-            string sInfo;
-            if (File.Exists(sCredLocation))
-            {
-                var sr = new StreamReader(sCredLocation);
-                sInfo = sr.ReadToEnd();
-                sr.Close();
-            }
-            else
-            {
-                MessageBox.Show("To send an SMS you will need to setup a Twilio account and edit the code in 'OnBnSMS()' in 'Form1.cs' to provide credentials. Use 'Twilio Info.json' in the root directory as a template", "Credentials Needed");
-                return;
-            }
-
-            var objJason = JsonConvert.DeserializeObject<Dictionary<string,string>>(sInfo);
-
-            TwilioClient.Init(objJason["accountSid"], objJason["authToken"]);
-
-            // create message showing the name of the stock, the type of last crossover, and date of crossover
-            string signal = "";
-            string[] sCross = { };
-
-            if(ProcessChart.sSignals == null || ProcessChart.sSignals.Length == 0)
-                return;
-
-            // get last crossing
-            sCross = ProcessChart.sSignals[ProcessChart.sSignals.Length - 1].Split(',');
-
-            // get moving average periods
-            if (!Int32.TryParse(txbMovAvg1.Text, out int nMA1))
-                nMA1 = -1;
-            if (!Int32.TryParse(txbMovAvg2.Text, out int nMA2))
-                nMA2 = -1;
-            string fastMA = "";
-            string slowMA = "";
-
-            // generate textual descriptions
-            if (nMA1 == -1 && nMA2 == -1)
-            {
-                signal = "No crossovers detected.";
-            }
-            else if (nMA1 == -1)
-            {
-                fastMA = $"{nMA2}-day {cmbMovAvg2.Text}";
-                slowMA = "stock's closing price";
-            }
-            else if (nMA2 == -1)
-            {
-                fastMA = $"{nMA1}-day {cmbMovAvg1.Text}";
-                slowMA = "stock's closing price";
-            }
-            else
-            {
-                fastMA = $"{Math.Min(nMA1, nMA2)}-day {(nMA1 < nMA2? cmbMovAvg1.Text: cmbMovAvg2.Text)}";
-                slowMA = $"{Math.Max(nMA1, nMA2)}-day {(nMA1 > nMA2? cmbMovAvg1.Text: cmbMovAvg2.Text)}";
-            }
-            if(signal == "")
-                signal = $"\nOn {sCross[0]}, the {fastMA} {(sCross[6] == " CrossOver" ? "crossed over" : "crossed under")} the {slowMA}.\n";
-
-            string text = 
-                $"Stock: {txbSymbol.Text}\n" +
-                $"open  {sCross[1]}\n" +
-                $"high  {sCross[2]}\n" +
-                $"low   {sCross[3]}\n" +
-                $"close {sCross[4]}\n";
-
-            //MessageBox.Show(signal + text);
-
-            var message = MessageResource.Create(
-                body: signal + text,
-                from: new Twilio.Types.PhoneNumber("+16089797234"),
-                to: new Twilio.Types.PhoneNumber("+13173799962")
-            );
-
-        }
-
+         // === Stock Data API Handler End ====================================================================
     }
 
 }
